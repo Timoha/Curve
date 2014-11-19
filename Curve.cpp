@@ -1,14 +1,12 @@
 // Curve.cpp : Defines the entry point for the console application.
 //
 //andrey, leave stdafx.h out of your code. this is a stupid windows thing
-#include "stdafx.h"
-
 
 #include <vector>
 #include <iostream>
 #include <cmath>
 #include <stdio.h>
-#include <stdlib.h> 
+#include <stdlib.h>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -19,7 +17,10 @@
 #include <vector>
 #include <time.h>
 #include <limits>
-using namespace std;
+
+
+#include "Shape.h"
+
 
 
 #ifdef _WIN32
@@ -36,10 +37,11 @@ using namespace std;
 #include <GL/glu.h>
 #endif
 
-#include <Eigen/Dense>
-#include <Eigen/StdVector>
-using namespace Eigen;
 
+#include <Eigen/Dense>
+
+using namespace std;
+using namespace Eigen;
 
 
 class Viewport {
@@ -50,21 +52,103 @@ public:
 
 class Patch{
 public:
-	std::vector <Eigen::Vector3d> q;
-	Patch(std::vector <Eigen::Vector3d> q); 
+	vector <Vector3d> q;
+	Patch(vector <Vector3d> q);
 };
 
-Patch::Patch(std::vector <Eigen::Vector3d> q1){
-	q = q1; 
+Patch::Patch(vector <Vector3d> q1){
+	q = q1;
 }
 
 //****************************************************
 // Global Variables
 //****************************************************
 Viewport    viewport;
-int patches; 
-vector <Eigen::Vector3d> coordinates;
+int numPatches;
+vector <Vector3d> coordinates;
 vector <Patch> bezpatches;
+
+int rotateX = 0;
+int rotateY = 0;
+double translateX = 0;
+double translateY = 0;
+double scale = 1;
+
+const double TRANSLATE_DELTA = 0.04;
+const int ROTATE_DELTA = 3;
+const double SCALE_DELTA = 0.5;
+
+
+
+void mySpecialKeys (int key, int x, int y) {
+
+
+
+    int mod = glutGetModifiers();
+    bool isShift = false;
+
+    switch (mod) {
+        case GLUT_ACTIVE_SHIFT:
+            isShift = true;
+            break;
+    }
+
+
+    switch (key) {
+
+        case GLUT_KEY_LEFT:
+            if (isShift) {
+                translateX -= TRANSLATE_DELTA;
+            } else {
+                rotateY -= ROTATE_DELTA;
+            }
+            break;
+        case GLUT_KEY_RIGHT:
+            if (isShift) {
+                translateX += TRANSLATE_DELTA;
+            } else {
+                rotateY += ROTATE_DELTA;
+            }
+            break;
+        case GLUT_KEY_UP:
+            if (isShift) {
+                translateY += TRANSLATE_DELTA;
+            } else {
+                rotateX -= ROTATE_DELTA;
+            }
+            break;
+        case GLUT_KEY_DOWN:
+            if (isShift) {
+                translateY -= TRANSLATE_DELTA;
+            } else {
+                rotateX += ROTATE_DELTA;
+            }
+            break;
+        default:
+            cout << "Special key " << key << endl;
+    }
+
+    glutPostRedisplay();
+}
+
+//---+----3----+----2----+----1----+---<>---+----1----+----2----+----3----+----4
+
+void myKeyboard (unsigned char key, int x, int y) {
+    switch (key) {
+        case '+':
+            scale /= SCALE_DELTA;
+            break;
+        case '-':
+            scale *= SCALE_DELTA;
+            break;
+        default:
+            cout << "myKeyboard " << key << endl;
+    }
+
+    glutPostRedisplay();
+}
+
+
 
 //****************************************************
 // reshape viewport if the window is resized
@@ -82,8 +166,6 @@ void myReshape(int w, int h) {
 
 	//----------- setting the projection -------------------------
 	// glOrtho sets left, right, bottom, top, zNear, zFar of the chord system
-
-
 	// glOrtho(-1, 1 + (w-400)/200.0 , -1 -(h-400)/200.0, 1, 1, -1); // resize type = add
 	 glOrtho(-w/400.0, w/400.0, -h/400.0, h/400.0, 2, -2); // resize type = center
 
@@ -103,19 +185,18 @@ void initScene(){
 }
 
 
-Eigen::Vector3d deCasteljau(Eigen::Vector3d v0, Eigen::Vector3d v1, Eigen::Vector3d v2, Eigen::Vector3d v3, double u){
-	Vector3d result = pow((1 - u), 3)*v0 + 3 * pow((1 - u), 2)*u*v1 + 3 * (1 - u)*pow(u, 2)*v2 + pow(u, 3)*v3; 
-	return result; 
+Vector3d deCasteljau(const Vector3d& v0, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3, double u){
+	return pow((1 - u), 3)*v0 + 3 * pow((1 - u), 2)*u*v1 + 3 * (1 - u)*pow(u, 2)*v2 + pow(u, 3)*v3;
 }
 
-void glgenCurve(Eigen::Vector3d v0, Eigen::Vector3d v1, Eigen::Vector3d v2, Eigen::Vector3d v3, double u){
+
+void glgenCurve(const Vector3d& v0, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3, double u){
 	glBegin(GL_LINE_STRIP);
 	for (unsigned int i = 0; i <= (unsigned int) 1/u; ++i){
 		Vector3d result = deCasteljau(v0, v1, v2, v3, (double) (u*i));
-		glVertex3f(result[0], result[1], result[2]);		
+		glVertex3f(result[0], result[1], result[2]);
 	}
-	glEnd(); 
-
+	glEnd();
 }
 
 
@@ -125,15 +206,32 @@ void display() // adapted from http://stackoverflow.com/questions/13159444/openg
 	glClear(GL_COLOR_BUFFER_BIT);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
+
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
+
+    // glEnable(GL_LIGHTING);
+    glShadeModel(GL_SMOOTH);
+
 	glColor3ub(255, 0, 0);
 	Vector3d v0(0.0, 0.0, 0.0);
-	Vector3d v1(0.33, 0.33, 0.0);
-	Vector3d v2(0.66, 0.33, 0.0);
+	Vector3d v1(0.33, 0.33, 1.0);
+	Vector3d v2(0.66, 0.33, 1.0);
 	Vector3d v3(1.0, 0.0, 0.0);
-	glgenCurve(v0, v1, v2, v3, .01);
+	// glgenCurve(v0, v1, v2, v3, .01);
+
+    Quad q(v0, v1, v2, v3);
+
+    glPushMatrix();
+        glTranslated(translateX, translateY, 0);
+        glRotated(rotateX, 1, 0, 0);  // Up and down arrow keys 'tip' view.
+        glRotated(rotateY, 0, 1, 0);  // Right/left arrow keys 'turn' view.
+        glScaled(scale, scale, scale);
+        q.draw();
+    glPopMatrix();
+
+    glFlush();
 	glutSwapBuffers();
 }
 
@@ -153,55 +251,61 @@ void myFrameMove() {
 // the usual stuff, nothing exciting here
 //****************************************************
 
-void parseLine(const std::string& line) {
+void parseLine(const string& line) {
 	istringstream iss(line);
 	vector<string> tokens((istream_iterator<string>(iss)), istream_iterator<string>());
 
 
 	if (tokens.size() == 0) {
 		return;
-	}
-	else if (tokens.size() == 1) {
-		patches = atoi(tokens[0].c_str());
-	}
-
-	else if (tokens.size() == 12) {
+	} else if (tokens.size() == 1) {
+		numPatches = atoi(tokens[0].c_str());
+	} else if (tokens.size() == 12) {
 		for (int i = 0; i < 4; i++){
-			coordinates.push_back(Eigen::Vector3d(atof(tokens[3 * i+0].c_str()), atof(tokens[3 * i + 1].c_str()), atof(tokens[3 * i + 2].c_str())));
-		}	
+			coordinates.push_back(Vector3d(atof(tokens[3 * i+0].c_str()), atof(tokens[3 * i + 1].c_str()), atof(tokens[3 * i + 2].c_str())));
+		}
 	}
 }
 
-const char* filename;
-int main(int argc, char *argv[]) {
-	
-	std::ifstream fin("test.bez");
-	std::string line;
- 
-	if (!fin.good())
-	{
-		cout << "bad file name" << endl; 
-	}
-	else{
-		//first load all text file data into "coordinates" buffer during parse stage. 
-		//after parsing is done, transfer data from buffer into patches, and then clumb all patches together in "bezpatches" vector
-		while (getline(fin, line)) {
-			try {
-				parseLine(line);
 
-			}
-			catch (invalid_argument& e) {
-				cerr << e.what() << endl;
-			}
-		}
-	}
-	cout << patches << endl; 
-	for (int j = 0; j < patches; j++){
-		std::vector <Eigen::Vector3d> curve;
+
+int main(int argc, char *argv[]) {
+
+	ifstream fin;
+	string line;
+
+    if (argc >= 2) {
+        fin.open(argv[1]);
+
+
+        if (!fin.good()) {
+            cout << "File \"" << argv[1] << "\" does not exists" << endl;
+            return 1;
+        }
+
+        //after parsing is done, transfer data from buffer into numPatches, and then clumb all numPatches together in "bezpatches" vector
+        while (getline(fin , line)) {
+
+            try {
+                parseLine(line);
+            } catch (invalid_argument& e) {
+                cerr << e.what() << endl;
+            }
+        }
+
+        fin.close();
+    } else {
+        cout << "Invalid argument." << endl;
+    }
+
+
+	cout << numPatches << endl;
+	for (int j = 0; j < numPatches; j++){
+		vector <Vector3d> curve;
 		for (int i = 0; i < 16; i++){
 			curve.push_back(coordinates[j * 16 + i]);
 		}
-		Patch next(curve); 
+		Patch next(curve);
 		//just for testing
 		//cout << "new patch" << endl;
 		//for (int k = 0; k < 16;  k++){
@@ -215,7 +319,7 @@ int main(int argc, char *argv[]) {
 
 	glutInit(&argc, argv);
 
-	//This tells glut to use a double-buffered window with red, green, and blue channels 
+	//This tells glut to use a double-buffered window with red, green, and blue channels
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
 	// Initalize theviewport size
@@ -231,23 +335,13 @@ int main(int argc, char *argv[]) {
 
 	glutDisplayFunc(display);                  // function to run when its time to draw something
 	glutReshapeFunc(myReshape);                  // function to run when the window gets resized
+    glutKeyboardFunc(myKeyboard);
+    glutSpecialFunc(mySpecialKeys);
 	glutIdleFunc(myFrameMove);                   // function to run when not handling any other task
 	glutMainLoop();                              // infinite loop that will keep drawing and resizing and whatever else
 
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 //for some reason, this function is shitty and juut doesn't work

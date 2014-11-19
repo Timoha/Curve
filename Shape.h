@@ -15,7 +15,8 @@ class Shape
 {
 public:
     Shape() {};
-    virtual ~Shape() = 0;
+    ~Shape() {}
+    // virtual ~Shape() = 0;
     virtual void draw() const = 0;
 };
 

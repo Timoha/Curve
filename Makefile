@@ -13,7 +13,7 @@ RM = /bin/rm -f
 all: main
 main: Curve.o Shape.o
 	$(CC) $(CFLAGS) -o subdivision Curve.o Shape.o $(LDFLAGS)
-Curve.o: Curve.cpp Shape.h
+Curve.o: Curve.cpp Shape.h Shape.cpp
 	$(CC) $(CFLAGS) -c Curve.cpp -o Curve.o
 Shape.o: Shape.cpp Shape.h
 	$(CC) $(CFLAGS) -c Shape.cpp -o Shape.o

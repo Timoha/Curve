@@ -1,11 +1,10 @@
-#ifndef SHAPE_H
-#define SHAPE_H
+
 
 #include <iostream>
 #include <math.h>
 
-
 #include "Shape.h"
+
 #include <Eigen/Dense>
 
 #ifdef OSX
@@ -21,27 +20,6 @@ using namespace std;
 using namespace Eigen;
 
 
-class Shape
-{
-public:
-    Shape() {};
-    virtual ~Shape() = 0;
-    virtual void draw() const = 0;
-};
-
-
-inline Shape::~Shape() {}
-
-
-class Triangle : public Shape
-{
-public:
-    Triangle();
-    Triangle(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC);
-    void draw() const;
-private:
-    Vector3d vertexA, vertexB, vertexC;
-};
 
 Triangle::Triangle(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC) {
     vertexA = inVertexA;
@@ -59,15 +37,6 @@ void Triangle::draw() const {
 }
 
 
-class Quad : public Shape
-{
-public:
-    Quad();
-    Quad(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC, const Vector3d& inVertexD);
-    void draw() const;
-private:
-    Vector3d vertexA, vertexB, vertexC, vertexD;
-};
 
 Quad::Quad(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC, const Vector3d& inVertexD) {
     vertexA = inVertexA;
@@ -85,7 +54,3 @@ void Quad::draw() const {
         glVertex3d(vertexD[0], vertexD[1], vertexD[2]);
     glEnd();
 }
-
-
-
-#endif

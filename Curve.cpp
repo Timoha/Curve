@@ -20,6 +20,7 @@
 
 
 #include "Shape.h"
+// #include "Shape.cpp"
 
 
 
@@ -67,6 +68,7 @@ Viewport    viewport;
 int numPatches;
 vector <Vector3d> coordinates;
 vector <Patch> bezpatches;
+vector <Shape*> faces;
 
 int rotateX = 0;
 int rotateY = 0;
@@ -201,6 +203,60 @@ void glgenCurve(const Vector3d& v0, const Vector3d& v1, const Vector3d& v2, cons
 
 
 
+Vector3d curveInterp(Vector3d v0, Vector3d v1, Vector3d v2, Vector3d v3, double u){
+    Vector3d A = v0*(1.0 - u) + v1*u;
+    Vector3d B = v1*(1.0 - u) + v2*u;
+    Vector3d C = v2*(1.0 - u) + v3*u;
+
+    Vector3d D = A*(1 - u) + B*u;
+    Vector3d E = B*(1 - u) + C*u;
+    Vector3d p = D*(1 - u) + E*u;
+
+    return p;
+}
+
+Vector3d patchInterp(Patch patch, double u, double v){
+
+    Vector3d vcurve0 = curveInterp(patch.q[0], patch.q[1], patch.q[2], patch.q[3], u);
+    Vector3d vcurve1 = curveInterp(patch.q[4], patch.q[5], patch.q[6], patch.q[7], u);
+    Vector3d vcurve2 = curveInterp(patch.q[8], patch.q[9], patch.q[10], patch.q[11], u);
+    Vector3d vcurve3 = curveInterp(patch.q[12], patch.q[13], patch.q[14], patch.q[15], u);
+
+    Vector3d ucurve0 = curveInterp(patch.q[0], patch.q[4], patch.q[8], patch.q[12], v);
+    Vector3d ucurve1 = curveInterp(patch.q[1], patch.q[5], patch.q[9], patch.q[13], v);
+    Vector3d ucurve2 = curveInterp(patch.q[2], patch.q[6], patch.q[10], patch.q[14], v);
+    Vector3d ucurve3 = curveInterp(patch.q[3], patch.q[7], patch.q[11], patch.q[15], v);
+
+    Vector3d p = curveInterp(vcurve0, vcurve1, vcurve2, vcurve3, v);
+    return p;
+}
+
+
+void uniformTesselate(Patch patch, unsigned int numdiv){
+    double step = numdiv;
+    double stepsize = (double)(1 / step);
+    for (unsigned int u = 0; u<numdiv; ++u){
+        for (unsigned int v = 0; v < numdiv; ++v){
+            Vector3d A = patchInterp(patch, u*stepsize, v*stepsize);
+            Vector3d B = patchInterp(patch, (1+u)*(stepsize), v*stepsize);
+            Vector3d C = patchInterp(patch, (1+u)*(stepsize), (1+v)*(stepsize));
+            Vector3d D = patchInterp(patch, u*stepsize, (1+v)*(stepsize));
+
+            Quad* q = new Quad(A, B, C, D);
+            faces.push_back(q);
+
+            // glBegin(GL_LINE_STRIP);
+            // glVertex3d(A[0], A[1], A[2]);
+            // glVertex3d(B[0], B[1], B[2]);
+            // glVertex3d(C[0], C[1], C[2]);
+            // glVertex3d(D[0], D[1], D[2]);
+            // glEnd();
+        }
+    }
+}
+
+
+
 void display() // adapted from http://stackoverflow.com/questions/13159444/opengl-draw-polygon-with-gl-lines-and-angle-between-lines
 {
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -228,7 +284,9 @@ void display() // adapted from http://stackoverflow.com/questions/13159444/openg
         glRotated(rotateX, 1, 0, 0);  // Up and down arrow keys 'tip' view.
         glRotated(rotateY, 0, 1, 0);  // Right/left arrow keys 'turn' view.
         glScaled(scale, scale, scale);
-        q.draw();
+        for (int i = 0; i < faces.size(); i++) {
+            faces[i]->draw();
+        }
     glPopMatrix();
 
     glFlush();
@@ -314,7 +372,9 @@ int main(int argc, char *argv[]) {
 		bezpatches.push_back(next);
 	}
 
-
+    for (int i = 0; i < numPatches; i++) {
+        uniformTesselate(bezpatches[i], 20);
+    }
 
 
 	glutInit(&argc, argv);
@@ -323,8 +383,8 @@ int main(int argc, char *argv[]) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
 	// Initalize theviewport size
-	viewport.w = 400;
-	viewport.h = 400;
+	viewport.w = 600;
+	viewport.h = 600;
 
 	//The size and position of the window
 	glutInitWindowSize(viewport.w, viewport.h);
@@ -341,65 +401,4 @@ int main(int argc, char *argv[]) {
 	glutMainLoop();                              // infinite loop that will keep drawing and resizing and whatever else
 
 	return 0;
-}
-
-
-//for some reason, this function is shitty and juut doesn't work
-//***************************************************
-// function that does the actual drawing
-//***************************************************
-void myDisplay() {
-
-	glClear(GL_COLOR_BUFFER_BIT);                // clear the color buffer (sets everything to black)
-
-	glMatrixMode(GL_MODELVIEW);                  // indicate we are specifying camera transformations
-	glLoadIdentity();                            // make sure transformation is "zero'd"
-
-
-	Vector3d v0(0.0, 0.0, 0.0);
-	Vector3d v1(0.33, 0.33, 0.0);
-	Vector3d v2(0.66, 0.33, 0.0);
-	Vector3d v3(1.0, 0.0, 0.0);
-
-	glgenCurve(v0, v1, v2, v3, .2);
-
-
-	//----------------------- code to draw objects --------------------------
-	// Rectangle Code
-	//glColor3f(red component, green component, blue component);
-	/*
-	glColor3f(1.0f, 0.0f, 0.0f);
-	glBegin(GL_POLYGON);                         // draw rectangle
-	//glVertex3f(x val, y val, z val (won't change the point because of the projection type));
-
-	glVertex3f(0.0f, 0.0f, 0.0f);               // bottom left corner of rectangle
-	glVertex3f(0.33f, 0.33f, 0.0f);
-	glVertex3f(0.66f, 0.33f, 0.0f);
-	glVertex3f(1.0f, 0.0f, 0.0f);
-	glEnd();
-	*/
-
-	/*
-	glColor3f(1.0f, 0.0f, 0.0f);                   // setting the color to pure red 90% for the rect
-	glBegin(GL_POLYGON);                         // draw rectangle
-	//glVertex3f(x val, y val, z val (won't change the point because of the projection type));
-	float farl =1.1f;
-	glVertex3f(-0.8f, 0.0f, farl);               // bottom left corner of rectangle
-	glVertex3f(-0.8f, 0.5f, farl);               // top left corner of rectangle
-	glVertex3f(0.0f, 0.5f, farl);               // top right corner of rectangle
-	glVertex3f(0.0f, 0.0f, farl);               // bottom right corner of rectangle
-	glEnd();
-	// Triangle Code
-	glColor3f(1.0f, 0.5f, 0.0f);                   // setting the color to orange for the triangle
-
-	float basey = -sqrt(0.48f);                  // height of triangle = sqrt(.8^2-.4^2)
-	glBegin(GL_POLYGON);
-	glVertex3f(.5f, 0.0f, 0.0f);                // top tip of triangle
-	glVertex3f(0.1f, basey, 0.0f);               // lower left corner of triangle
-	glVertex3f(0.9f, basey, 0.0f);               // lower right corner of triangle
-	glEnd();
-	//-----------------------------------------------------------------------
-	*/
-	glFlush();
-	glutSwapBuffers();                           // swap buffers (we earlier set double buffer)
 }

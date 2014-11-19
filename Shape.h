@@ -26,10 +26,14 @@ class Triangle : public Shape
 public:
     Triangle();
     Triangle(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC);
+    Triangle(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC,
+             const Vector3d& inNormalA, const Vector3d& inNormalB, const Vector3d& inNormalC);
     void draw() const;
 private:
     Vector3d vertexA, vertexB, vertexC;
+    Vector3d normalA, normalB, normalC;
 };
+
 
 
 class Quad : public Shape
@@ -37,10 +41,28 @@ class Quad : public Shape
 public:
     Quad();
     Quad(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC, const Vector3d& inVertexD);
+    Quad(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d& inVertexC, const Vector3d& inVertexD,
+         const Vector3d& inNormalA, const Vector3d& inNormalB, const Vector3d& inNormalC, const Vector3d& inNormalD);
     void draw() const;
 private:
     Vector3d vertexA, vertexB, vertexC, vertexD;
+    Vector3d normalA, normalB, normalC, normalD;
 };
+
+
+
+class LocalInfo
+{
+public:
+    Vector3d point;
+    Vector3d normal;
+    LocalInfo(const Vector3d& inPoint, const Vector3d& inNormal) {
+        point = inPoint;
+        normal = inNormal;
+    }
+};
+
+
 
 
 #endif

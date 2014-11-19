@@ -203,54 +203,60 @@ void glgenCurve(const Vector3d& v0, const Vector3d& v1, const Vector3d& v2, cons
 
 
 
-Vector3d curveInterp(Vector3d v0, Vector3d v1, Vector3d v2, Vector3d v3, double u){
-    Vector3d A = v0*(1.0 - u) + v1*u;
-    Vector3d B = v1*(1.0 - u) + v2*u;
-    Vector3d C = v2*(1.0 - u) + v3*u;
+LocalInfo curveInterp(Vector3d v0, Vector3d v1, Vector3d v2, Vector3d v3, double u) {
+    Vector3d A = v0 * (1.0 - u) + v1 * u;
+    Vector3d B = v1 * (1.0 - u) + v2 * u;
+    Vector3d C = v2 * (1.0 - u) + v3 * u;
 
-    Vector3d D = A*(1 - u) + B*u;
-    Vector3d E = B*(1 - u) + C*u;
-    Vector3d p = D*(1 - u) + E*u;
+    Vector3d D = A * (1 - u) + B * u;
+    Vector3d E = B * (1 - u) + C * u;
 
-    return p;
+    Vector3d p = D * (1 - u) + E * u;
+
+    Vector3d np = 3 * (E - D);
+
+    return LocalInfo(p, np);
 }
 
-Vector3d patchInterp(Patch patch, double u, double v){
+LocalInfo patchInterp(Patch patch, double u, double v) {
 
-    Vector3d vcurve0 = curveInterp(patch.q[0], patch.q[1], patch.q[2], patch.q[3], u);
-    Vector3d vcurve1 = curveInterp(patch.q[4], patch.q[5], patch.q[6], patch.q[7], u);
-    Vector3d vcurve2 = curveInterp(patch.q[8], patch.q[9], patch.q[10], patch.q[11], u);
-    Vector3d vcurve3 = curveInterp(patch.q[12], patch.q[13], patch.q[14], patch.q[15], u);
+    Vector3d vcurve0 = curveInterp(patch.q[0], patch.q[1], patch.q[2], patch.q[3], u).point;
+    Vector3d vcurve1 = curveInterp(patch.q[4], patch.q[5], patch.q[6], patch.q[7], u).point;
+    Vector3d vcurve2 = curveInterp(patch.q[8], patch.q[9], patch.q[10], patch.q[11], u).point;
+    Vector3d vcurve3 = curveInterp(patch.q[12], patch.q[13], patch.q[14], patch.q[15], u).point;
 
-    Vector3d ucurve0 = curveInterp(patch.q[0], patch.q[4], patch.q[8], patch.q[12], v);
-    Vector3d ucurve1 = curveInterp(patch.q[1], patch.q[5], patch.q[9], patch.q[13], v);
-    Vector3d ucurve2 = curveInterp(patch.q[2], patch.q[6], patch.q[10], patch.q[14], v);
-    Vector3d ucurve3 = curveInterp(patch.q[3], patch.q[7], patch.q[11], patch.q[15], v);
+    Vector3d ucurve0 = curveInterp(patch.q[0], patch.q[4], patch.q[8], patch.q[12], v).point;
+    Vector3d ucurve1 = curveInterp(patch.q[1], patch.q[5], patch.q[9], patch.q[13], v).point;
+    Vector3d ucurve2 = curveInterp(patch.q[2], patch.q[6], patch.q[10], patch.q[14], v).point;
+    Vector3d ucurve3 = curveInterp(patch.q[3], patch.q[7], patch.q[11], patch.q[15], v).point;
 
-    Vector3d p = curveInterp(vcurve0, vcurve1, vcurve2, vcurve3, v);
-    return p;
+    LocalInfo infv = curveInterp(vcurve0, vcurve1, vcurve2, vcurve3, v);
+    LocalInfo infu = curveInterp(ucurve0, ucurve1, ucurve2, ucurve3, u);
+
+    Vector3d p = infv.point;
+    Vector3d dPdv = infv.normal;
+    Vector3d dPdu = infu.normal;
+
+    Vector3d n = -dPdu.cross(dPdv);
+    n.normalize();
+    // cout << n << ";" << endl;
+
+    return LocalInfo(p, n);
 }
 
 
 void uniformTesselate(Patch patch, unsigned int numdiv){
     double step = numdiv;
-    double stepsize = (double)(1 / step);
-    for (unsigned int u = 0; u<numdiv; ++u){
+    double stepsize = 1.0 / step;
+    for (unsigned int u = 0; u < numdiv; ++u){
         for (unsigned int v = 0; v < numdiv; ++v){
-            Vector3d A = patchInterp(patch, u*stepsize, v*stepsize);
-            Vector3d B = patchInterp(patch, (1+u)*(stepsize), v*stepsize);
-            Vector3d C = patchInterp(patch, (1+u)*(stepsize), (1+v)*(stepsize));
-            Vector3d D = patchInterp(patch, u*stepsize, (1+v)*(stepsize));
+            LocalInfo A = patchInterp(patch, u*stepsize, v*stepsize);
+            LocalInfo B = patchInterp(patch, (1+u)*(stepsize), v*stepsize);
+            LocalInfo C = patchInterp(patch, (1+u)*(stepsize), (1+v)*(stepsize));
+            LocalInfo D = patchInterp(patch, u*stepsize, (1+v)*(stepsize));
 
-            Quad* q = new Quad(A, B, C, D);
+            Quad* q = new Quad(A.point, B.point, C.point, D.point, A.normal, B.normal, C.normal, D.normal);
             faces.push_back(q);
-
-            // glBegin(GL_LINE_STRIP);
-            // glVertex3d(A[0], A[1], A[2]);
-            // glVertex3d(B[0], B[1], B[2]);
-            // glVertex3d(C[0], C[1], C[2]);
-            // glVertex3d(D[0], D[1], D[2]);
-            // glEnd();
         }
     }
 }
@@ -267,17 +273,19 @@ void display() // adapted from http://stackoverflow.com/questions/13159444/openg
 	glLoadIdentity();
 
 
-    // glEnable(GL_LIGHTING);
     glShadeModel(GL_SMOOTH);
 
-	glColor3ub(255, 0, 0);
-	Vector3d v0(0.0, 0.0, 0.0);
-	Vector3d v1(0.33, 0.33, 1.0);
-	Vector3d v2(0.66, 0.33, 1.0);
-	Vector3d v3(1.0, 0.0, 0.0);
-	// glgenCurve(v0, v1, v2, v3, .01);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
 
-    Quad q(v0, v1, v2, v3);
+    // glLightModeli(GL_LIGHT_MODEL_TWO_SIDED, GL_TRUE);
+
+    GLfloat lightColor0[] = { 0.5f, 0.5f, 0.5f, 1.0f }; //Color (0.5, 0.5, 0.5)
+    GLfloat lightPos0[] = { 4.0f, 0.0f, 8.0f, 1.0f }; //Positioned at (4, 0, 8)
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightColor0);
+    glLightfv(GL_LIGHT0, GL_POSITION, lightPos0);
+
+	glColor3ub(255, 255, 255);
 
     glPushMatrix();
         glTranslated(translateX, translateY, 0);
@@ -383,8 +391,8 @@ int main(int argc, char *argv[]) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 
 	// Initalize theviewport size
-	viewport.w = 600;
-	viewport.h = 600;
+	viewport.w = 800;
+	viewport.h = 800;
 
 	//The size and position of the window
 	glutInitWindowSize(viewport.w, viewport.h);

@@ -92,6 +92,7 @@ Quad::Quad(const Vector3d& inVertexA, const Vector3d& inVertexB, const Vector3d&
 
 void Quad::draw() const {
     glBegin(GL_QUADS);
+
         glNormal3d(normalA[0], normalA[1], normalA[2]);
         glVertex3d(vertexA[0], vertexA[1], vertexA[2]);
 
@@ -104,4 +105,11 @@ void Quad::draw() const {
         glNormal3d(normalD[0], normalD[1], normalD[2]);
         glVertex3d(vertexD[0], vertexD[1], vertexD[2]);
     glEnd();
+
+    // Vector3d normalLine = vertexA + normalA;
+
+    // glBegin(GL_LINES);
+    //     glVertex3d(normalLine[0], normalLine[1], normalLine[2]);
+    //     glVertex3d(vertexA[0], vertexA[1], vertexA[2]);
+    // glEnd();
 }

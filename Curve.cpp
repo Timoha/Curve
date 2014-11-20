@@ -72,9 +72,13 @@ vector <Shape*> faces;
 
 int rotateX = 0;
 int rotateY = 0;
+double tessArg = 0.1;
 double translateX = 0;
 double translateY = 0;
 double scale = 1;
+
+bool isWireframe = false;
+bool isSmoothShading = false;
 
 const double TRANSLATE_DELTA = 0.04;
 const int ROTATE_DELTA = 3;
@@ -143,6 +147,12 @@ void myKeyboard (unsigned char key, int x, int y) {
         case '-':
             scale *= SCALE_DELTA;
             break;
+        case 'w':
+            isWireframe = isWireframe ? false : true;
+            break;
+        case 's':
+            isSmoothShading = isSmoothShading ? false : true;
+            break;
         default:
             cout << "myKeyboard " << key << endl;
     }
@@ -208,15 +218,17 @@ LocalInfo curveInterp(Vector3d v0, Vector3d v1, Vector3d v2, Vector3d v3, double
     Vector3d B = v1 * (1.0 - u) + v2 * u;
     Vector3d C = v2 * (1.0 - u) + v3 * u;
 
-    Vector3d D = A * (1 - u) + B * u;
-    Vector3d E = B * (1 - u) + C * u;
+    Vector3d D = A * (1.0 - u) + B * u;
+    Vector3d E = B * (1.0 - u) + C * u;
 
-    Vector3d p = D * (1 - u) + E * u;
+    Vector3d p = D * (1.0 - u) + E * u;
 
-    Vector3d np = 3 * (E - D);
+    Vector3d np = 3.0 * (E - D);
 
     return LocalInfo(p, np);
 }
+
+
 
 LocalInfo patchInterp(Patch patch, double u, double v) {
 
@@ -233,27 +245,25 @@ LocalInfo patchInterp(Patch patch, double u, double v) {
     LocalInfo infv = curveInterp(vcurve0, vcurve1, vcurve2, vcurve3, v);
     LocalInfo infu = curveInterp(ucurve0, ucurve1, ucurve2, ucurve3, u);
 
-    Vector3d p = infv.point;
+    Vector3d p = infu.point;
     Vector3d dPdv = infv.normal;
     Vector3d dPdu = infu.normal;
 
-    Vector3d n = -dPdu.cross(dPdv);
+    Vector3d n = dPdu.cross(dPdv);
     n.normalize();
-    // cout << n << ";" << endl;
 
     return LocalInfo(p, n);
 }
 
 
-void uniformTesselate(Patch patch, unsigned int numdiv){
-    double step = numdiv;
-    double stepsize = 1.0 / step;
-    for (unsigned int u = 0; u < numdiv; ++u){
-        for (unsigned int v = 0; v < numdiv; ++v){
-            LocalInfo A = patchInterp(patch, u*stepsize, v*stepsize);
-            LocalInfo B = patchInterp(patch, (1+u)*(stepsize), v*stepsize);
-            LocalInfo C = patchInterp(patch, (1+u)*(stepsize), (1+v)*(stepsize));
-            LocalInfo D = patchInterp(patch, u*stepsize, (1+v)*(stepsize));
+void uniformTesselate(Patch patch, double step){
+    int numdiv = 1.0 / step;
+    for (int u = 0; u < numdiv; ++u){
+        for (int v = 0; v < numdiv; ++v){
+            LocalInfo A = patchInterp(patch, u*step, v*step);
+            LocalInfo B = patchInterp(patch, (1+u) * step, v * step);
+            LocalInfo C = patchInterp(patch, (1+u) * step, (1+v) * step);
+            LocalInfo D = patchInterp(patch, u*step, (1+v) * step);
 
             Quad* q = new Quad(A.point, B.point, C.point, D.point, A.normal, B.normal, C.normal, D.normal);
             faces.push_back(q);
@@ -263,31 +273,41 @@ void uniformTesselate(Patch patch, unsigned int numdiv){
 
 
 
-void display() // adapted from http://stackoverflow.com/questions/13159444/opengl-draw-polygon-with-gl-lines-and-angle-between-lines
-{
-	glClear(GL_COLOR_BUFFER_BIT);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
+void display() {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 
 
-    glShadeModel(GL_SMOOTH);
-
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
 
-    // glLightModeli(GL_LIGHT_MODEL_TWO_SIDED, GL_TRUE);
-
     GLfloat lightColor0[] = { 0.5f, 0.5f, 0.5f, 1.0f }; //Color (0.5, 0.5, 0.5)
-    GLfloat lightPos0[] = { 4.0f, 0.0f, 8.0f, 1.0f }; //Positioned at (4, 0, 8)
+    GLfloat lightPos0[] = { 4.0f, 4.0f, -4.0f, 1.0f }; //Positioned at (4, 4, 4)
     glLightfv(GL_LIGHT0, GL_DIFFUSE, lightColor0);
     glLightfv(GL_LIGHT0, GL_POSITION, lightPos0);
 
-	glColor3ub(255, 255, 255);
+
+    if (isSmoothShading) {
+        glShadeModel(GL_SMOOTH);
+    } else {
+        glShadeModel(GL_FLAT);
+    }
+
+    if (isWireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        glDisable(GL_LIGHTING);
+        glDisable(GL_LIGHT0);
+    } else {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+
+
+	// glColor3ub(255, 255, 255);
 
     glPushMatrix();
+
         glTranslated(translateX, translateY, 0);
         glRotated(rotateX, 1, 0, 0);  // Up and down arrow keys 'tip' view.
         glRotated(rotateY, 0, 1, 0);  // Right/left arrow keys 'turn' view.
@@ -295,6 +315,7 @@ void display() // adapted from http://stackoverflow.com/questions/13159444/openg
         for (int i = 0; i < faces.size(); i++) {
             faces[i]->draw();
         }
+
     glPopMatrix();
 
     glFlush();
@@ -341,6 +362,11 @@ int main(int argc, char *argv[]) {
 	string line;
 
     if (argc >= 2) {
+
+        if (argc >= 3) {
+            tessArg = atof(argv[2]);
+        }
+
         fin.open(argv[1]);
 
 
@@ -372,23 +398,20 @@ int main(int argc, char *argv[]) {
 			curve.push_back(coordinates[j * 16 + i]);
 		}
 		Patch next(curve);
-		//just for testing
-		//cout << "new patch" << endl;
-		//for (int k = 0; k < 16;  k++){
-		//	cout << curve[k] << endl;
-		//}
+
 		bezpatches.push_back(next);
 	}
 
     for (int i = 0; i < numPatches; i++) {
-        uniformTesselate(bezpatches[i], 20);
+        uniformTesselate(bezpatches[i], tessArg);
     }
 
 
 	glutInit(&argc, argv);
 
 	//This tells glut to use a double-buffered window with red, green, and blue channels
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+
 
 	// Initalize theviewport size
 	viewport.w = 800;
@@ -397,9 +420,12 @@ int main(int argc, char *argv[]) {
 	//The size and position of the window
 	glutInitWindowSize(viewport.w, viewport.h);
 	glutInitWindowPosition(0, 0);
-	glutCreateWindow("CS184!");
+	glutCreateWindow("CS184 Assignment 3");
 
 	initScene();                                 // quick function to set up scene
+
+    glEnable(GL_DEPTH_TEST);
+
 
 	glutDisplayFunc(display);                  // function to run when its time to draw something
 	glutReshapeFunc(myReshape);                  // function to run when the window gets resized

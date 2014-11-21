@@ -363,44 +363,44 @@ TestResults edgeTests(Patch patch, const PatchTri& tri, double error){
         return TestResults(true);
     }
     //case 2.1
-    else if (!lefttest && righttest && bottomtest){
+    else if (!lefttest && righttest && bottomtest) {
         cout << "case 2.1" << endl;
-        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, left));
-        newTriangles.push_back(PatchTri(left, tri.vertexB, tri.vertexC));
+        newTriangles.push_back(PatchTri(left, tri.vertexA, tri.vertexB));
+        newTriangles.push_back(PatchTri(tri.vertexC, left, tri.vertexB));
     }
     //case 2.2
-    else if (lefttest && righttest && !bottomtest){
+    else if (lefttest && righttest && !bottomtest) {
         cout << "case 2.2" << endl;
         newTriangles.push_back(PatchTri(tri.vertexA, bottom, tri.vertexC));
         newTriangles.push_back(PatchTri(bottom, tri.vertexB, tri.vertexC));
     }
     //case 2.3
-    else if (lefttest && !righttest && bottomtest){
+    else if (lefttest && !righttest && bottomtest) {
         cout << "case 2.3" << endl;
-        newTriangles.push_back(PatchTri(tri.vertexA, right, tri.vertexC));
-        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, right));
+        newTriangles.push_back(PatchTri(right, tri.vertexC, tri.vertexA));
+        newTriangles.push_back(PatchTri(tri.vertexB, right, tri.vertexA));
     }
     //case 3
-    else if (!lefttest && righttest && !bottomtest){
-        cout << "case 3.2" << endl;
-        newTriangles.push_back(PatchTri(tri.vertexA, bottom, left));
-        newTriangles.push_back(PatchTri(left, bottom, tri.vertexC));
+    else if (!lefttest && righttest && !bottomtest) {
+        cout << "case 3.1" << endl;
+        newTriangles.push_back(PatchTri(left, tri.vertexA, bottom));
+        newTriangles.push_back(PatchTri(tri.vertexC, left, bottom));
         newTriangles.push_back(PatchTri(bottom, tri.vertexB, tri.vertexC));
     }
-    else if (lefttest && !righttest && !bottomtest){
-        cout << "case 3.3" << endl;
-        newTriangles.push_back(PatchTri(tri.vertexA, right, tri.vertexC));
+    else if (lefttest && !righttest && !bottomtest) {
+        cout << "case 3.2" << endl;
+        newTriangles.push_back(PatchTri(right, tri.vertexC, tri.vertexA));
         newTriangles.push_back(PatchTri(tri.vertexA, bottom, right));
         newTriangles.push_back(PatchTri(bottom, tri.vertexB, right));
     }
-    else if (!lefttest && !righttest && bottomtest ){
-        cout << "case 3.1" << endl;
-        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, left));
-        newTriangles.push_back(PatchTri(right, left, tri.vertexC));
-        newTriangles.push_back(PatchTri(left, tri.vertexB, right));
+    else if (!lefttest && !righttest && bottomtest) {
+        cout << "case 3.3" << endl;
+        newTriangles.push_back(PatchTri(left, tri.vertexA, tri.vertexB));
+        newTriangles.push_back(PatchTri(right, tri.vertexC, left));
+        newTriangles.push_back(PatchTri(tri.vertexB, right, left));
     }
     //case 4
-    else if (!lefttest && !righttest && !bottomtest){
+    else if (!lefttest && !righttest && !bottomtest) {
         cout << "case 4" << endl;
         newTriangles.push_back(PatchTri(tri.vertexA, bottom, left));
         newTriangles.push_back(PatchTri(left, right, tri.vertexC));

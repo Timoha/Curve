@@ -416,8 +416,8 @@ void adaptiveTriangulate(Patch patch, double error){
     vector<PatchTri, aligned_allocator<PatchTri> > triangulation;
 
     //create triangle tri,s add to patch tri vector, run tesselation, passing in
-    PatchTri first(Vector2d(0, 1), Vector2d(0, 0), Vector2d(1, 0));
-    PatchTri second(Vector2d(1, 0), Vector2d(1, 1), Vector2d(0, 1));
+    PatchTri first(Vector2d(0, 0), Vector2d(1, 0), Vector2d(1, 1));
+    PatchTri second(Vector2d(0, 0), Vector2d(1, 1), Vector2d(0, 1));
 
     queue.push(first);
     queue.push(second);

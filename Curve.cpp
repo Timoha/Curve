@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <iterator>
 #include <vector>
+#include <queue>
 #include <time.h>
 #include <limits>
 
@@ -40,6 +41,7 @@
 
 
 #include <Eigen/Dense>
+#include <Eigen/StdVector>
 
 using namespace std;
 using namespace Eigen;
@@ -79,6 +81,9 @@ double scale = 1;
 
 bool isWireframe = false;
 bool isSmoothShading = false;
+bool isVertexOnly = false;
+bool isNormals = false;
+bool isAdaptive = false;
 
 const double TRANSLATE_DELTA = 0.04;
 const int ROTATE_DELTA = 3;
@@ -152,6 +157,12 @@ void myKeyboard (unsigned char key, int x, int y) {
             break;
         case 's':
             isSmoothShading = isSmoothShading ? false : true;
+            break;
+        case 'v':
+            isVertexOnly = isVertexOnly ? false : true;
+            break;
+        case 'n':
+            isNormals = isNormals ? false : true;
             break;
         default:
             cout << "myKeyboard " << key << endl;
@@ -273,6 +284,174 @@ void uniformTesselate(Patch patch, double step){
 
 
 
+class PatchTri {
+    //ACTUALLY THESE ARE 2D VECTORS. BUT I GET ALIGNMENT ERRORS WHEN I USE VECTOR2D
+public:
+    Vector2d vertexA;
+    Vector2d vertexB;
+    Vector2d vertexC;
+    PatchTri(const Vector2d&, const Vector2d&, const Vector2d&);
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+
+PatchTri::PatchTri(const Vector2d& A, const Vector2d& B, const Vector2d& C){
+    vertexA = A;
+    vertexB = B;
+    vertexC = C;
+}
+
+
+class TestResults {
+public:
+    bool flatEnough;
+    vector <PatchTri, aligned_allocator<PatchTri> > newTriangles;
+    TestResults(bool isFlat) { flatEnough = isFlat; }
+    TestResults(bool isFlat, const vector<PatchTri, aligned_allocator<PatchTri> >& triangles);
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+
+
+TestResults::TestResults(bool isFlat, const vector<PatchTri, aligned_allocator<PatchTri> >& triangles) {
+    flatEnough = isFlat;
+    newTriangles = triangles;
+}
+
+
+TestResults edgeTests(Patch patch, const PatchTri& tri, double error){
+    //pass in triangle u,v values
+    //      C
+    //     / \
+    //    /   \
+    //   A --- B
+
+    //evaluate corners of triangle. remember patch tri has 2d vectors of (u,v) values
+    Vector3d A = patchInterp(patch, tri.vertexA[0], tri.vertexA[1]).point;
+    Vector3d B = patchInterp(patch, tri.vertexB[0], tri.vertexB[1]).point;
+    Vector3d C = patchInterp(patch, tri.vertexC[0], tri.vertexC[1]).point;
+
+    //calculate midpoints of triangle by averaging evaluated corners
+    Vector3d Trileft = (A + C) / 2;
+    Vector3d Triright = (B + C) / 2;
+    Vector3d Tribottom = (A + B) / 2;
+    Vector3d Tricenter = (A + B + C) / 3;
+
+    //generate midpoint u,v values of triangle for evaluation. all 2d vectors
+    Vector2d left = (tri.vertexA + tri.vertexC) / 2;
+    Vector2d right = (tri.vertexB + tri.vertexC) / 2;
+    Vector2d bottom = (tri.vertexA + tri.vertexB) / 2;
+    Vector2d center = (tri.vertexA + tri.vertexB + tri.vertexC) / 3;
+
+    //evaluate at midpoints using u,v values
+    Vector3d Bezleft =  patchInterp(patch, left[0], left[1]).point;
+    Vector3d Bezright = patchInterp(patch, right[0], right[1]).point;
+    Vector3d Bezbottom = patchInterp(patch, bottom[0], bottom[1]).point;
+    Vector3d Bezcenter = patchInterp(patch, center[0], center[1]).point;
+
+    //do tests, comparing triangle midpoints(TRI) and evaluated midpoints (Bez)
+    bool lefttest = (Trileft - Bezleft).norm() < error ;
+    bool righttest = (Triright - Bezright).norm() < error;
+    bool bottomtest = (Tribottom - Bezbottom).norm() < error;
+    bool centertest = (Tricenter - Bezcenter).norm() < error;
+
+
+    vector <PatchTri, aligned_allocator<PatchTri> > newTriangles;
+
+
+    if (lefttest && righttest && bottomtest) {
+        // cout << "done" << endl;
+        return TestResults(true);
+    }
+    //case 2.1
+    else if (!lefttest && righttest && bottomtest){
+        cout << "case 2.1" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, left));
+        newTriangles.push_back(PatchTri(left, tri.vertexB, tri.vertexC));
+    }
+    //case 2.2
+    else if (lefttest && righttest && !bottomtest){
+        cout << "case 2.2" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, bottom, tri.vertexC));
+        newTriangles.push_back(PatchTri(bottom, tri.vertexB, tri.vertexC));
+    }
+    //case 2.3
+    else if (lefttest && !righttest && bottomtest){
+        cout << "case 2.3" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, right, tri.vertexC));
+        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, right));
+    }
+    //case 3
+    else if (!lefttest && righttest && !bottomtest){
+        cout << "case 3.2" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, bottom, left));
+        newTriangles.push_back(PatchTri(left, bottom, tri.vertexC));
+        newTriangles.push_back(PatchTri(bottom, tri.vertexB, tri.vertexC));
+    }
+    else if (lefttest && !righttest && !bottomtest){
+        cout << "case 3.3" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, right, tri.vertexC));
+        newTriangles.push_back(PatchTri(tri.vertexA, bottom, right));
+        newTriangles.push_back(PatchTri(bottom, tri.vertexB, right));
+    }
+    else if (!lefttest && !righttest && bottomtest ){
+        cout << "case 3.1" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, tri.vertexB, left));
+        newTriangles.push_back(PatchTri(right, left, tri.vertexC));
+        newTriangles.push_back(PatchTri(left, tri.vertexB, right));
+    }
+    //case 4
+    else if (!lefttest && !righttest && !bottomtest){
+        cout << "case 4" << endl;
+        newTriangles.push_back(PatchTri(tri.vertexA, bottom, left));
+        newTriangles.push_back(PatchTri(left, right, tri.vertexC));
+        newTriangles.push_back(PatchTri(bottom, right, left));
+        newTriangles.push_back(PatchTri(bottom, tri.vertexB, right));
+    }
+
+    return TestResults(false, newTriangles);
+}
+
+void adaptiveTriangulate(Patch patch, double error){
+    queue<PatchTri> queue;
+    vector<PatchTri, aligned_allocator<PatchTri> > triangulation;
+
+    //create triangle tri,s add to patch tri vector, run tesselation, passing in
+    PatchTri first(Vector2d(0, 1), Vector2d(0, 0), Vector2d(1, 0));
+    PatchTri second(Vector2d(1, 0), Vector2d(1, 1), Vector2d(0, 1));
+
+    queue.push(first);
+    queue.push(second);
+
+    while (!queue.empty()){
+        // cout << "queue start" << endl;
+        PatchTri popped = queue.front();
+        TestResults result = edgeTests(patch, popped, error);
+        queue.pop();
+
+        if (result.flatEnough){
+            triangulation.push_back(popped);
+        } else {
+            for ( int i = 0; i < result.newTriangles.size(); ++i){
+                queue.push(result.newTriangles[i]);
+                // cout << "flag" << endl;
+            }
+        }
+    }
+
+    for (int i = 0; i < triangulation.size(); ++i){
+        PatchTri first = triangulation[i];
+        LocalInfo A = patchInterp(patch, first.vertexA[0], first.vertexA[1]);
+        LocalInfo B = patchInterp(patch, first.vertexB[0], first.vertexB[1]);
+        LocalInfo C = patchInterp(patch, first.vertexC[0], first.vertexC[1]);
+
+        Triangle* t = new Triangle(A.point, B.point, C.point, A.normal, B.normal, C.normal);
+        faces.push_back(t);
+    }
+}
+
+
+
+
 void display() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -299,9 +478,15 @@ void display() {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         glDisable(GL_LIGHTING);
         glDisable(GL_LIGHT0);
+    } else if (isVertexOnly) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+        glDisable(GL_LIGHTING);
+        glDisable(GL_LIGHT0);
     } else {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
+
+
 
 
 	// glColor3ub(255, 255, 255);
@@ -314,6 +499,10 @@ void display() {
         glScaled(scale, scale, scale);
         for (int i = 0; i < faces.size(); i++) {
             faces[i]->draw();
+
+            if (isNormals) {
+                faces[i]->drawNormal();
+            }
         }
 
     glPopMatrix();
@@ -367,6 +556,10 @@ int main(int argc, char *argv[]) {
             tessArg = atof(argv[2]);
         }
 
+        if (argc == 4 && string(argv[3]) == "-a") {
+            isAdaptive = true;
+        }
+
         fin.open(argv[1]);
 
 
@@ -403,7 +596,11 @@ int main(int argc, char *argv[]) {
 	}
 
     for (int i = 0; i < numPatches; i++) {
-        uniformTesselate(bezpatches[i], tessArg);
+        if (isAdaptive) {
+            adaptiveTriangulate(bezpatches[i], tessArg);
+        } else {
+            uniformTesselate(bezpatches[i], tessArg);
+        }
     }
 
 
